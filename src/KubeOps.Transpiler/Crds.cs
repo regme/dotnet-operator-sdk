@@ -283,6 +283,13 @@ public static class Crds
             return new V1JSONSchemaProps { Type = Object };
         }
 
+        if (IsGenericNullableType(type, out Type? closingNullableType) && IsSimpleType(closingNullableType))
+        {
+            var item = context.Map(closingNullableType);
+            item.Nullable = true;
+            return item;
+        }
+
         if (type.IsArray && type.GetElementType() != null)
         {
             var items = context.Map(type.GetElementType()!);
@@ -355,26 +362,22 @@ public static class Crds
             };
         }
 
-        if (type == context.GetContextType<int>() ||
-            type == context.GetContextType<int?>())
+        if (type == context.GetContextType<int>())
         {
             return new V1JSONSchemaProps { Type = Integer, Format = Int32 };
         }
 
-        if (type == context.GetContextType<long>() ||
-            type == context.GetContextType<long?>())
+        if (type == context.GetContextType<long>())
         {
             return new V1JSONSchemaProps { Type = Integer, Format = Int64 };
         }
 
-        if (type == context.GetContextType<float>() ||
-            type == context.GetContextType<float?>())
+        if (type == context.GetContextType<float>())
         {
             return new V1JSONSchemaProps { Type = Number, Format = Float };
         }
 
-        if (type == context.GetContextType<double>() ||
-            type == context.GetContextType<double?>())
+        if (type == context.GetContextType<double>())
         {
             return new V1JSONSchemaProps { Type = Number, Format = Double };
         }
@@ -386,16 +389,23 @@ public static class Crds
             return new V1JSONSchemaProps { Type = String };
         }
 
-        if (type == context.GetContextType<bool>() ||
-            type == context.GetContextType<bool?>())
+        if (type == context.GetContextType<bool>())
         {
             return new V1JSONSchemaProps { Type = Boolean };
         }
 
-        if (type == context.GetContextType<DateTime>() ||
-            type == context.GetContextType<DateTime?>())
+        if (type == context.GetContextType<DateTime>())
         {
             return new V1JSONSchemaProps { Type = String, Format = DateTime };
+        }
+
+        if (type == context.GetContextType<Guid>())
+        {
+            return new V1JSONSchemaProps
+            {
+                Type = String,
+                Pattern = "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+            };
         }
 
         if (type.IsEnum)
@@ -447,10 +457,7 @@ public static class Crds
                 context.GetContextType<TimeSpan>(), context.GetContextType<Guid>(),
             }.Contains(t) ||
             t.IsEnum ||
-            Convert.GetTypeCode(t) != TypeCode.Object ||
-            (t.IsGenericType &&
-             t.GetGenericTypeDefinition() == context.GetContextType(typeof(Nullable<>)) &&
-             IsSimpleType(t.GetGenericArguments()[0]));
+            Convert.GetTypeCode(t) != TypeCode.Object;
 
         bool IsGenericEnumerableType(
             Type theType,
@@ -471,6 +478,21 @@ public static class Crds
                 .FirstOrDefault();
 
             return enclosingType != null;
+        }
+
+        bool IsGenericNullableType(
+            Type theType,
+            [NotNullWhen(true)] out Type? enclosingType)
+        {
+            if (theType.IsGenericType)
+            {
+                enclosingType = theType.GetGenericArguments()[0];
+                bool isAssignable = context.GetContextType(typeof(Nullable<>)).MakeGenericType(enclosingType).IsAssignableFrom(theType);
+                return isAssignable;
+            }
+
+            enclosingType = null;
+            return false;
         }
     }
 }
